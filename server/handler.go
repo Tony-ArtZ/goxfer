@@ -1,6 +1,7 @@
 package server
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +16,9 @@ import (
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 )
+
+//go:embed template/index.html
+var indexHTML []byte
 
 type TransferManager struct {
 	PushChan chan string
@@ -63,13 +67,8 @@ func (tm *TransferManager) QueueFile(path string) {
 }
 
 func HandleIndex(w http.ResponseWriter, r *http.Request) {
-	contentBytes, err := os.ReadFile("./template/index.html")
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
 	w.Header().Set("Content-Type", "text/html")
-	w.Write(contentBytes)
+	w.Write(indexHTML)
 }
 
 func (tm *TransferManager) HandleDownload(w http.ResponseWriter, r *http.Request) {
