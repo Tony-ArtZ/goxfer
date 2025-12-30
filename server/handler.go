@@ -8,7 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/google/uuid"
@@ -93,14 +95,29 @@ func (tm *TransferManager) HandleDownload(w http.ResponseWriter, r *http.Request
 	}
 	defer file.Close()
 
-	w.Header().Set("Content-Disposition", "attachment; filename="+filepath.Base(path))
+	stat, err := file.Stat()
+	if err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+filepath.Base(path)+"\"")
 	w.Header().Set("Content-Type", "application/octet-stream")
-	http.ServeFile(w, r, path)
+	w.Header().Set("Content-Length", strconv.FormatInt(stat.Size(), 10))
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+
+	io.Copy(w, file)
 }
 
 func (tm *TransferManager) HandlePoll(w http.ResponseWriter, r *http.Request) {
-	url := <-tm.PushChan
-	json.NewEncoder(w).Encode(map[string]string{"url": url})
+	select {
+	case url := <-tm.PushChan:
+		json.NewEncoder(w).Encode(map[string]string{"url": url})
+	case <-time.After(25 * time.Second):
+		json.NewEncoder(w).Encode(map[string]string{"url": ""})
+	case <-r.Context().Done():
+		return
+	}
 }
 
 func (tm *TransferManager) HandleUpload(w http.ResponseWriter, r *http.Request) {
